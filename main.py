@@ -15,7 +15,7 @@ bot = commands.Bot(command_prefix="/", intents=intents)
 # List to store users waiting to be paired
 waiting_list = []
 
-class MatchmakingButton(discord.ui.Button):
+class JoinQueueButton(discord.ui.Button):
     def __init__(self):
         super().__init__(label="Matchmaking beitreten", style=discord.ButtonStyle.primary)
 
@@ -53,19 +53,33 @@ class MatchmakingButton(discord.ui.Button):
             # Notify the group
             await channel.send(f"{role.mention}, ihr wurdet in einer Gruppe für Deadlock platziert!")
 
-            # Optional: You can add a timer or manual trigger to delete the role and channel after the game
-            # await role.delete()
-            # await channel.delete()
+class LeaveQueueButton(discord.ui.Button):
+    def __init__(self):
+        super().__init__(label="Matchmaking verlassen", style=discord.ButtonStyle.danger)
+
+    async def callback(self, interaction: discord.Interaction):
+        user = interaction.user
+
+        # Check if the user is in the waiting list
+        if user not in waiting_list:
+            await interaction.response.send_message("Du bist nicht in der Warteschlange!", ephemeral=True)
+            return
+
+        # Remove user from the waiting list
+        waiting_list.remove(user)
+        await interaction.response.send_message(f"{user.mention}, du wurdest aus der Warteschlange entfernt!", ephemeral=True)
 
 class MatchmakingView(View):
     def __init__(self):
         super().__init__()
-        self.add_item(MatchmakingButton())
+        # Add both join and leave buttons
+        self.add_item(JoinQueueButton())
+        self.add_item(LeaveQueueButton())
 
 # Command to initiate the matchmaking process
 @bot.command(name="matchmake")
 async def matchmake(ctx):
-    await ctx.send("Klicke auf den Button, um der Matchmaking-Warteschlange beizutreten!", view=MatchmakingView())
+    await ctx.send("Klicke auf den Button, um der Matchmaking-Warteschlange beizutreten oder sie zu verlassen!", view=MatchmakingView())
 
 # Bot event when the bot is ready
 @bot.event
