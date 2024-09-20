@@ -10,7 +10,7 @@ intents.guilds = True  # Required to manage channels and roles
 intents.members = True  # Required to manage members
 
 # Initialize the bot
-bot = commands.Bot(command_prefix="!", intents=intents)
+bot = commands.Bot(command_prefix="/", intents=intents)
 
 # List to store users waiting to be paired
 waiting_list = []
