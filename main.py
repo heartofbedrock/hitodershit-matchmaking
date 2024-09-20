@@ -6,6 +6,8 @@ import os
 
 intents = discord.Intents.default()
 intents.message_content = True
+intents.guilds = True  # Required to manage channels and roles
+intents.members = True  # Required to manage members
 
 # Initialize the bot
 bot = commands.Bot(command_prefix="!", intents=intents)
@@ -15,29 +17,45 @@ waiting_list = []
 
 class MatchmakingButton(discord.ui.Button):
     def __init__(self):
-        super().__init__(label="Join Matchmaking Queue", style=discord.ButtonStyle.primary)
+        super().__init__(label="Matchmaking beitreten", style=discord.ButtonStyle.primary)
 
     async def callback(self, interaction: discord.Interaction):
         user = interaction.user
 
         # Check if the user is already in the waiting list
         if user in waiting_list:
-            await interaction.response.send_message("You are already in the queue!", ephemeral=True)
+            await interaction.response.send_message("Du bist bereits in der Warteschlange!", ephemeral=True)
             return
 
         # Add user to the waiting list
         waiting_list.append(user)
-        await interaction.response.send_message(f"{user.mention}, you have joined the matchmaking queue!", ephemeral=True)
+        await interaction.response.send_message(f"{user.mention}, du wurdest zur Warteschlange hinzugefügt!", ephemeral=True)
 
-        # If two or more users are in the queue, pair them
-        if len(waiting_list) >= 2:
-            # Randomly pair two users
-            pair = random.sample(waiting_list, 2)
-            waiting_list.remove(pair[0])
-            waiting_list.remove(pair[1])
+        # If there are 12 users in the waiting list, create a group
+        if len(waiting_list) >= 12:
+            # Select 12 players from the queue
+            group = random.sample(waiting_list, 12)
 
-            # Notify the users they've been paired
-            await interaction.followup.send(f"{pair[0].mention} and {pair[1].mention} have been paired!")
+            # Remove the selected players from the waiting list
+            for player in group:
+                waiting_list.remove(player)
+
+            # Create a temporary role and channel for the group
+            guild = interaction.guild
+            role = await guild.create_role(name="Deadlock Gruppe", mentionable=True)
+            channel = await guild.create_text_channel(f"deadlock-gruppe-{random.randint(1000, 9999)}")
+
+            # Add the role to each player and move them to the channel
+            for player in group:
+                await player.add_roles(role)
+                await channel.set_permissions(player, read_messages=True, send_messages=True)
+            
+            # Notify the group
+            await channel.send(f"{role.mention}, ihr wurdet in einer Gruppe für Deadlock platziert!")
+
+            # Optional: You can add a timer or manual trigger to delete the role and channel after the game
+            # await role.delete()
+            # await channel.delete()
 
 class MatchmakingView(View):
     def __init__(self):
@@ -47,12 +65,12 @@ class MatchmakingView(View):
 # Command to initiate the matchmaking process
 @bot.command(name="matchmake")
 async def matchmake(ctx):
-    await ctx.send("Click the button to join the matchmaking queue!", view=MatchmakingView())
+    await ctx.send("Klicke auf den Button, um der Matchmaking-Warteschlange beizutreten!", view=MatchmakingView())
 
 # Bot event when the bot is ready
 @bot.event
 async def on_ready():
-    print(f"Bot is online as {bot.user}")
+    print(f"Bot ist online als {bot.user}")
 
 # Run the bot
 bot.run(os.getenv("DISCORD_TOKEN"))
