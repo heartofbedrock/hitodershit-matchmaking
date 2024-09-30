@@ -28,9 +28,14 @@ class JoinQueueButton(discord.ui.Button):
             await interaction.response.send_message("Du bist bereits in der Warteschlange!", ephemeral=True)
             return
 
+        # Defer the interaction response (gives bot time to process the matchmaking)
+        await interaction.response.defer(ephemeral=True)
+
         # Add user to the waiting list
         waiting_list.append(user)
-        await interaction.response.send_message(f"{user.mention}, du wurdest zur Warteschlange hinzugefügt!", ephemeral=True)
+
+        # Send immediate response
+        await interaction.followup.send(f"{user.mention}, du wurdest zur Warteschlange hinzugefügt!", ephemeral=True)
 
         # Check if we need to create a new group
         await manage_groups(interaction)
@@ -91,9 +96,14 @@ class LeaveQueueButton(discord.ui.Button):
             await interaction.response.send_message("Du bist nicht in der Warteschlange!", ephemeral=True)
             return
 
+        # Defer the interaction response
+        await interaction.response.defer(ephemeral=True)
+
         # Remove user from the waiting list
         waiting_list.remove(user)
-        await interaction.response.send_message(f"{user.mention}, du wurdest aus der Warteschlange entfernt!", ephemeral=True)
+
+        # Send immediate response
+        await interaction.followup.send(f"{user.mention}, du wurdest aus der Warteschlange entfernt!", ephemeral=True)
 
 class MatchmakingView(View):
     def __init__(self):
