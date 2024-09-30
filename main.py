@@ -1,8 +1,9 @@
 import discord
-from discord.ext import commands
+from discord.ext import commands, tasks
 from discord.ui import Button, View
 import random
 import os
+import asyncio
 
 intents = discord.Intents.default()
 intents.message_content = True
@@ -15,31 +16,33 @@ bot = commands.Bot(command_prefix="/", intents=intents)
 # List to store users waiting to be paired
 waiting_list = []
 groups = []  # List to store ongoing groups that are waiting to fill up
+last_message = None  # Track the last matchmake message
 
-class JoinQueueButton(discord.ui.Button):
-    def __init__(self):
-        super().__init__(label="Matchmaking beitreten", style=discord.ButtonStyle.primary)
+# Start a task that runs every 5 minutes
+@tasks.loop(minutes=5)
+async def automatic_matchmake():
+    guild = discord.utils.get(bot.guilds, name="YOUR_SERVER_NAME")  # Replace with your server name
+    channel = discord.utils.get(guild.text_channels, name="your-channel")  # Replace with your channel name
 
-    async def callback(self, interaction: discord.Interaction):
-        user = interaction.user
+    global last_message
 
-        # Check if the user is already in the waiting list
-        if user in waiting_list:
-            await interaction.response.send_message("Du bist bereits in der Warteschlange!", ephemeral=True)
-            return
+    # Delete the previous matchmake message if it exists
+    if last_message:
+        try:
+            await last_message.delete()
+        except discord.NotFound:
+            pass  # If the message was already deleted, ignore
 
-        # Defer the interaction response (gives bot time to process the matchmaking)
-        await interaction.response.defer(ephemeral=True)
+    # Send a new matchmaking message and save it to last_message
+    last_message = await channel.send("Klicke auf den Button, um der Matchmaking-Warteschlange beizutreten oder sie zu verlassen!", view=MatchmakingView())
 
-        # Add user to the waiting list
-        waiting_list.append(user)
+# Event to start the automatic task when the bot is ready
+@bot.event
+async def on_ready():
+    print(f"Bot ist online als {bot.user}")
+    automatic_matchmake.start()  # Start the loop when the bot is ready
 
-        # Send immediate response
-        await interaction.followup.send(f"{user.mention}, du wurdest zur Warteschlange hinzugefügt!", ephemeral=True)
-
-        # Check if we need to create a new group
-        await manage_groups(interaction)
-
+# Manage groups and queue
 async def manage_groups(interaction):
     guild = interaction.guild
 
@@ -84,6 +87,31 @@ async def manage_groups(interaction):
         await channel.send(f"{role.mention}, ihr wurdet in einer neuen Gruppe für Deadlock platziert! ({len(new_group['members'])}/12)")
     return
 
+# Create and leave queue buttons
+class JoinQueueButton(discord.ui.Button):
+    def __init__(self):
+        super().__init__(label="Matchmaking beitreten", style=discord.ButtonStyle.primary)
+
+    async def callback(self, interaction: discord.Interaction):
+        user = interaction.user
+
+        # Check if the user is already in the waiting list
+        if user in waiting_list:
+            await interaction.response.send_message("Du bist bereits in der Warteschlange!", ephemeral=True)
+            return
+
+        # Defer the interaction response (gives bot time to process the matchmaking)
+        await interaction.response.defer(ephemeral=True)
+
+        # Add user to the waiting list
+        waiting_list.append(user)
+
+        # Send immediate response
+        await interaction.followup.send(f"{user.mention}, du wurdest zur Warteschlange hinzugefügt!", ephemeral=True)
+
+        # Check if we need to create a new group
+        await manage_groups(interaction)
+
 class LeaveQueueButton(discord.ui.Button):
     def __init__(self):
         super().__init__(label="Matchmaking verlassen", style=discord.ButtonStyle.danger)
@@ -105,6 +133,7 @@ class LeaveQueueButton(discord.ui.Button):
         # Send immediate response
         await interaction.followup.send(f"{user.mention}, du wurdest aus der Warteschlange entfernt!", ephemeral=True)
 
+# View to hold the buttons
 class MatchmakingView(View):
     def __init__(self):
         super().__init__()
@@ -112,15 +141,10 @@ class MatchmakingView(View):
         self.add_item(JoinQueueButton())
         self.add_item(LeaveQueueButton())
 
-# Command to initiate the matchmaking process
+# Command to manually initiate the matchmaking process
 @bot.command(name="matchmake")
 async def matchmake(ctx):
     await ctx.send("Klicke auf den Button, um der Matchmaking-Warteschlange beizutreten oder sie zu verlassen!", view=MatchmakingView())
-
-# Bot event when the bot is ready
-@bot.event
-async def on_ready():
-    print(f"Bot ist online als {bot.user}")
 
 # Run the bot
 bot.run(os.getenv("DISCORD_TOKEN"))
